@@ -190,9 +190,26 @@ void StreamChartView::fitHorizontal()
 void StreamChartView::fitVertical()
 {
     if (!m_axisY) return;
-    double yMargin = (m_dataMaxY - m_dataMinY) * 0.05;
+
+    // Compute Y range from visible series only
+    double minY = std::numeric_limits<double>::max();
+    double maxY = std::numeric_limits<double>::lowest();
+    for (auto *s : m_series) {
+        if (!s->isVisible()) continue;
+        for (const auto &pt : s->points()) {
+            if (pt.y() < minY) minY = pt.y();
+            if (pt.y() > maxY) maxY = pt.y();
+        }
+    }
+    if (minY > maxY) {
+        // No visible series — fall back to full data range
+        minY = m_dataMinY;
+        maxY = m_dataMaxY;
+    }
+
+    double yMargin = (maxY - minY) * 0.05;
     if (yMargin < 1e-9) yMargin = 1.0;
-    m_axisY->setRange(m_dataMinY - yMargin, m_dataMaxY + yMargin);
+    m_axisY->setRange(minY - yMargin, maxY + yMargin);
 }
 
 void StreamChartView::zoomToRegion(double startSec, double endSec)
