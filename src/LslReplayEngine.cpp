@@ -81,6 +81,10 @@ void LslReplayEngine::createOutlets()
         return;
 
     for (const auto &s : *m_streams) {
+        if (!s.hasData() || s.data.empty()) {
+            m_outlets.push_back(nullptr); // placeholder to keep indexing aligned
+            continue;
+        }
         lsl::stream_info info(
             s.name + "_replay",
             s.type,
@@ -136,6 +140,7 @@ void LslReplayEngine::run()
         QElapsedTimer elapsed;
         elapsed.start();
         double pausedAccum = 0.0; // total time spent paused
+        qint64 lastEmitMs = 0;
 
         double currentOffset = startOffset;
 
@@ -160,10 +165,17 @@ void LslReplayEngine::run()
             if (currentOffset >= endOffset)
                 break;
 
-            emit playbackPositionChanged(currentOffset);
+            // Throttle position updates to ~30fps
+            qint64 nowMs = elapsed.elapsed();
+            if (nowMs - lastEmitMs >= 33) {
+                emit playbackPositionChanged(currentOffset);
+                lastEmitMs = nowMs;
+            }
 
             // Push samples that are due
             for (size_t si = 0; si < m_streams->size(); ++si) {
+                if (!m_outlets[si]) continue; // skip streams without data
+
                 const auto &stream = (*m_streams)[si];
                 auto &idx = m_sampleIndices[si];
 
@@ -176,10 +188,14 @@ void LslReplayEngine::run()
                         continue;
                     }
 
-                    // Build sample vector
-                    std::vector<float> sample(stream.channelCount);
-                    for (int ch = 0; ch < stream.channelCount; ++ch) {
-                        sample[ch] = stream.data[ch][idx];
+                    // Build sample vector with bounds checking
+                    int nCh = stream.channelCount;
+                    if (nCh > static_cast<int>(stream.data.size()))
+                        nCh = static_cast<int>(stream.data.size());
+                    std::vector<float> sample(stream.channelCount, 0.0f);
+                    for (int ch = 0; ch < nCh; ++ch) {
+                        if (idx < stream.data[ch].size())
+                            sample[ch] = stream.data[ch][idx];
                     }
 
                     double lslTimestamp = lsl::local_clock();

@@ -176,9 +176,10 @@ void StreamChartView::updateCursorLine()
     if (!m_cursorSeries || !m_axisY)
         return;
 
+    // Use the data range (not axis range) for cursor to avoid feedback loops
     QVector<QPointF> pts;
-    pts.append(QPointF(m_cursorTime, m_axisY->min()));
-    pts.append(QPointF(m_cursorTime, m_axisY->max()));
+    pts.append(QPointF(m_cursorTime, m_dataMinY));
+    pts.append(QPointF(m_cursorTime, m_dataMaxY));
     m_cursorSeries->replace(pts);
 }
 
