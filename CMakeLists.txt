@@ -7,20 +7,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Detect static vs shared Qt to decide linking strategy
-option(STATIC_BUILD "Build a fully static executable" OFF)
-
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
 
 # liblsl via FetchContent
 include(FetchContent)
-
-# For static builds, build liblsl as a static library
-if(STATIC_BUILD)
-    set(LSL_BUILD_STATIC ON CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-endif()
 
 FetchContent_Declare(
     liblsl
@@ -50,7 +41,7 @@ set(HEADERS
 )
 
 # On Windows static builds, use WIN32 to avoid console window
-if(WIN32 AND STATIC_BUILD)
+if(WIN32)
     add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
 else()
     add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
@@ -62,26 +53,18 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     lsl
 )
 
-# Static builds on Windows need extra system libs and Qt plugins linked in
-if(STATIC_BUILD AND WIN32)
-    # Link Windows system libraries needed by static Qt
-    target_link_libraries(${PROJECT_NAME} PRIVATE
-        ws2_32 winmm iphlpapi dwmapi uxtheme
-    )
-    # Import the static Qt platform plugin
-    target_compile_definitions(${PROJECT_NAME} PRIVATE QT_STATICPLUGIN)
-    find_package(Qt6 COMPONENTS QWindowsIntegrationPlugin QUIET)
-    if(TARGET Qt6::QWindowsIntegrationPlugin)
-        target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::QWindowsIntegrationPlugin)
-    endif()
-elseif(NOT STATIC_BUILD)
-    # Shared builds: copy DLLs next to executable
-    if(WIN32)
+# Copy runtime dependencies next to executable (shared builds)
+if(WIN32)
+    # Copy lsl.dll
+    if(TARGET lsl AND BUILD_SHARED_LIBS OR NOT DEFINED BUILD_SHARED_LIBS)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:lsl>
                 $<TARGET_FILE_DIR:${PROJECT_NAME}>
         )
+    endif()
+    # Copy Qt platform plugin (only needed for local dev; windeployqt handles CI)
+    if(TARGET Qt6::QWindowsIntegrationPlugin)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 $<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms

@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt (static)
+      - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
@@ -22,20 +22,30 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtcharts'
 
-      - name: Configure (static)
+      - name: Configure
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DSTATIC_BUILD=ON `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release
 
+      - name: Deploy Qt DLLs
+        shell: pwsh
+        run: |
+          $qtBin = "$env:QT_ROOT_DIR/bin"
+          $deployDir = "deploy"
+          New-Item -ItemType Directory -Path $deployDir -Force
+          Copy-Item build/Release/XDFLSLReplayer.exe $deployDir/
+          Copy-Item build/Release/lsl.dll $deployDir/ -ErrorAction SilentlyContinue
+          Copy-Item build/_deps/liblsl-build/Release/lsl.dll $deployDir/ -ErrorAction SilentlyContinue
+          & "$qtBin/windeployqt.exe" "$deployDir/XDFLSLReplayer.exe" --release --no-translations --no-opengl-sw
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: XDFLSLReplayer-Windows
-          path: build/Release/XDFLSLReplayer.exe
+          path: deploy/
 
   build-macos:
     runs-on: macos-latest
@@ -59,10 +69,9 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Deploy Qt frameworks into .app bundle
+      - name: Deploy Qt into .app bundle
         run: |
-          brew install qt
-          macdeployqt build/XDFLSLReplayer.app -dmg || true
+          $QT_ROOT_DIR/bin/macdeployqt build/XDFLSLReplayer.app || true
 
       - name: Upload .app artifact
         uses: actions/upload-artifact@v4
@@ -81,18 +90,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: XDFLSLReplayer-Windows
-          path: windows
+          path: XDFLSLReplayer-Windows
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: XDFLSLReplayer-macOS
-          path: macos
+          path: XDFLSLReplayer-macOS
+
+      - name: Zip artifacts
+        run: |
+          cd XDFLSLReplayer-Windows && zip -r ../XDFLSLReplayer-Windows.zip . && cd ..
+          cd XDFLSLReplayer-macOS && zip -r ../XDFLSLReplayer-macOS.zip . && cd ..
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            windows/XDFLSLReplayer.exe
-            macos/XDFLSLReplayer.app
+            XDFLSLReplayer-Windows.zip
+            XDFLSLReplayer-macOS.zip
           generate_release_notes: true
