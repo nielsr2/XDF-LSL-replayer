@@ -2,11 +2,8 @@
 #include "XdfLoader.h"
 
 #include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QPushButton>
 #include <QMouseEvent>
 #include <QWheelEvent>
-#include <QGraphicsLineItem>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -17,15 +14,7 @@ StreamChartView::StreamChartView(const XdfStream &stream, double globalMinTime,
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-
-    // Toolbar with fit button
-    auto *toolLayout = new QHBoxLayout;
-    auto *fitBtn = new QPushButton("Fit");
-    fitBtn->setFixedWidth(60);
-    connect(fitBtn, &QPushButton::clicked, this, &StreamChartView::fitAxes);
-    toolLayout->addWidget(fitBtn);
-    toolLayout->addStretch();
-    layout->addLayout(toolLayout);
+    layout->setSpacing(0);
 
     m_chart = new QChart;
     m_chart->setAnimationOptions(QChart::NoAnimation);
@@ -34,12 +23,13 @@ StreamChartView::StreamChartView(const XdfStream &stream, double globalMinTime,
     m_chart->setPlotAreaBackgroundBrush(QBrush(QColor(26, 26, 36)));
     m_chart->setPlotAreaBackgroundVisible(true);
     m_chart->setTitleBrush(QBrush(QColor(200, 200, 220)));
+    m_chart->setMargins(QMargins(4, 4, 4, 4));
 
     m_chartView = new QChartView(m_chart);
     m_chartView->setRenderHint(QPainter::Antialiasing);
     m_chartView->setRubberBand(QChartView::RectangleRubberBand);
     m_chartView->viewport()->installEventFilter(this);
-    layout->addWidget(m_chartView);
+    layout->addWidget(m_chartView, 1);
 
     buildChart(stream, globalMinTime);
 }
@@ -252,4 +242,11 @@ bool StreamChartView::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void StreamChartView::setChannelVisible(int channelIndex, bool visible)
+{
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(m_series.size()))
+        return;
+    m_series[channelIndex]->setVisible(visible);
 }

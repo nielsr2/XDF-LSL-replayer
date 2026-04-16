@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include <QTreeWidget>
-#include <QCheckBox>
 #include <vector>
 
 struct XdfStream;
@@ -23,6 +22,7 @@ public:
 signals:
     void streamToggled(int streamIndex, bool visible);
     void streamSelected(int streamIndex);
+    void channelToggled(int streamIndex, int channelIndex, bool visible);
 
 private:
     QTreeWidget *m_tree = nullptr;

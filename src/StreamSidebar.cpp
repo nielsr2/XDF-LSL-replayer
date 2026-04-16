@@ -46,9 +46,29 @@ StreamSidebar::StreamSidebar(QWidget *parent)
     });
 
     connect(m_tree, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int) {
-        int idx = m_tree->indexOfTopLevelItem(item);
-        if (idx >= 0)
-            emit streamToggled(idx, item->checkState(0) == Qt::Checked);
+        // Top-level item = stream toggle
+        int topIdx = m_tree->indexOfTopLevelItem(item);
+        if (topIdx >= 0) {
+            emit streamToggled(topIdx, item->checkState(0) == Qt::Checked);
+            return;
+        }
+
+        // Channel item toggle — check if parent is a "Channels" group
+        QTreeWidgetItem *parent = item->parent();
+        if (!parent) return;
+        QTreeWidgetItem *grandparent = parent->parent();
+        if (!grandparent) return;
+
+        // grandparent is the stream item
+        int streamIdx = m_tree->indexOfTopLevelItem(grandparent);
+        if (streamIdx < 0) return;
+
+        // The channel group text starts with "  Channels"
+        if (!parent->text(0).trimmed().startsWith("Channels")) return;
+
+        int chIdx = parent->indexOfChild(item);
+        if (chIdx >= 0)
+            emit channelToggled(streamIdx, chIdx, item->checkState(0) == Qt::Checked);
     });
 
     layout->addWidget(m_tree, 1);
@@ -109,13 +129,13 @@ void StreamSidebar::setStreams(const std::vector<XdfStream> &streams)
             addChild("Data", "no samples");
         }
 
-        // Channel labels (collapsed by default)
-        if (!s.channelLabels.empty() && s.channelCount > 0) {
+        // Channel labels with checkboxes
+        if (s.channelCount > 0) {
             auto *chGroup = new QTreeWidgetItem(streamItem);
             chGroup->setText(0, QString("  Channels (%1)").arg(s.channelCount));
             chGroup->setForeground(0, QColor(100, 110, 140));
 
-            int maxShow = std::min(s.channelCount, 32);
+            int maxShow = std::min(s.channelCount, 64);
             for (int ch = 0; ch < maxShow; ++ch) {
                 auto *chItem = new QTreeWidgetItem(chGroup);
                 QString label = (ch < static_cast<int>(s.channelLabels.size()) && !s.channelLabels[ch].empty())
@@ -123,10 +143,11 @@ void StreamSidebar::setStreams(const std::vector<XdfStream> &streams)
                                     : QString("Ch %1").arg(ch);
                 chItem->setText(0, QString("    %1").arg(label));
                 chItem->setForeground(0, QColor(80, 90, 120));
+                chItem->setCheckState(0, Qt::Checked);
             }
-            if (s.channelCount > 32) {
+            if (s.channelCount > 64) {
                 auto *moreItem = new QTreeWidgetItem(chGroup);
-                moreItem->setText(0, QString("    ... +%1 more").arg(s.channelCount - 32));
+                moreItem->setText(0, QString("    ... +%1 more").arg(s.channelCount - 64));
                 moreItem->setForeground(0, QColor(80, 90, 120));
             }
         }

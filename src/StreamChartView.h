@@ -22,6 +22,8 @@ public:
     void setPlaybackCursor(double timeSec);
     void fitAxes();
     void zoomToRegion(double startSec, double endSec);
+    void setChannelVisible(int channelIndex, bool visible);
+    int channelCount() const { return static_cast<int>(m_series.size()); }
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;

@@ -58,6 +58,7 @@ private slots:
     void onLoadProgress(const QString &status);
     void onStreamToggled(int streamIndex, bool visible);
     void onStreamSelected(int streamIndex);
+    void onChannelToggled(int streamIndex, int channelIndex, bool visible);
     void onTabChanged(int index);
 
 private:
@@ -84,6 +85,7 @@ private:
     QAction *m_pauseAction = nullptr;
     QAction *m_stopAction = nullptr;
     QAction *m_loopAction = nullptr;
+    QAction *m_fitAction = nullptr;
 
     QLabel *m_statusLabel = nullptr;
     QLabel *m_timeLabel = nullptr;

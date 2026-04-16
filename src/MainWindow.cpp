@@ -120,6 +120,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onStreamToggled);
     connect(m_sidebar, &StreamSidebar::streamSelected,
             this, &MainWindow::onStreamSelected);
+    connect(m_sidebar, &StreamSidebar::channelToggled,
+            this, &MainWindow::onChannelToggled);
     connect(m_timeline, &TimelineWidget::loopRegionChanged,
             this, &MainWindow::onLoopRegionChanged);
 }
@@ -170,15 +172,25 @@ void MainWindow::setupToolbar()
     m_loopAction->setCheckable(true);
     m_loopAction->setChecked(false);
 
+    m_toolbar->addSeparator();
+
+    m_fitAction = m_toolbar->addAction(tr("\u2922 Fit"));
+
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
     connect(m_loopAction, &QAction::triggered, this, &MainWindow::onToggleLoop);
+    connect(m_fitAction, &QAction::triggered, this, [this]() {
+        int idx = m_streamTabs->currentIndex();
+        if (idx >= 0 && idx < static_cast<int>(m_chartViews.size()) && m_chartViews[idx])
+            m_chartViews[idx]->fitAxes();
+    });
 
     m_playAction->setEnabled(false);
     m_pauseAction->setEnabled(false);
     m_stopAction->setEnabled(false);
     m_loopAction->setEnabled(false);
+    m_fitAction->setEnabled(false);
 }
 
 void MainWindow::setupStatusBar()
@@ -229,6 +241,7 @@ void MainWindow::setLoadingState(bool loading)
     m_pauseAction->setEnabled(!loading && hasData);
     m_stopAction->setEnabled(!loading && hasData);
     m_loopAction->setEnabled(!loading && hasData);
+    m_fitAction->setEnabled(!loading && hasData);
 }
 
 void MainWindow::loadXdfFile(const QString &filePath)
@@ -386,7 +399,9 @@ void MainWindow::ensureChartBuilt(int tabIndex)
 
     auto *chart = new StreamChartView(stream, m_loader->globalMinTime());
 
-    // Replace placeholder with the real chart
+    // Block signals to prevent recursive onTabChanged during tab replacement
+    m_streamTabs->blockSignals(true);
+
     QWidget *old = m_streamTabs->widget(tabIndex);
     m_streamTabs->removeTab(tabIndex);
     delete old;
@@ -397,10 +412,11 @@ void MainWindow::ensureChartBuilt(int tabIndex)
     m_streamTabs->insertTab(tabIndex, chart, tabLabel);
     m_streamTabs->setCurrentIndex(tabIndex);
 
+    m_streamTabs->blockSignals(false);
+
     m_chartViews[tabIndex] = chart;
     m_chartBuilt[tabIndex] = true;
 
-    // Restore status
     QFileInfo fi(m_currentFilePath);
     m_statusLabel->setText(QString("Viewing: %1").arg(QString::fromStdString(stream.name)));
 }
@@ -427,6 +443,17 @@ void MainWindow::onStreamSelected(int streamIndex)
     for (int t = 0; t < static_cast<int>(m_tabToStream.size()); ++t) {
         if (m_tabToStream[t] == streamIndex) {
             m_streamTabs->setCurrentIndex(t);
+            break;
+        }
+    }
+}
+
+void MainWindow::onChannelToggled(int streamIndex, int channelIndex, bool visible)
+{
+    // Find the chart view for this stream and toggle the channel
+    for (int t = 0; t < static_cast<int>(m_tabToStream.size()); ++t) {
+        if (m_tabToStream[t] == streamIndex && m_chartViews[t]) {
+            m_chartViews[t]->setChannelVisible(channelIndex, visible);
             break;
         }
     }
