@@ -64,9 +64,5 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         $<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms
 )
 
-# Test loader (uses our XdfLoader, needs Qt for XML parsing)
-add_executable(test_load src/test_load.cpp src/XdfLoader.cpp)
-target_link_libraries(test_load PRIVATE Qt6::Core)
-
 # Install
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
