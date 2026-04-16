@@ -7,6 +7,12 @@
 #include <QFont>
 #include "MainWindow.h"
 
+// For static Qt builds, import the platform plugin at compile time
+#ifdef QT_STATICPLUGIN
+#include <QtPlugin>
+Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
+#endif
+
 static QPixmap createSplashPixmap()
 {
     QPixmap pix(600, 360);
