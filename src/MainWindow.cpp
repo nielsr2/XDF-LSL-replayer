@@ -174,7 +174,9 @@ void MainWindow::setupToolbar()
 
     m_toolbar->addSeparator();
 
-    m_fitAction = m_toolbar->addAction(tr("\u2922 Fit"));
+    m_fitAction = m_toolbar->addAction(tr("\u2922 Fit All"));
+    m_fitHAction = m_toolbar->addAction(tr("\u2194 Fit H"));
+    m_fitVAction = m_toolbar->addAction(tr("\u2195 Fit V"));
 
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
@@ -185,12 +187,24 @@ void MainWindow::setupToolbar()
         if (idx >= 0 && idx < static_cast<int>(m_chartViews.size()) && m_chartViews[idx])
             m_chartViews[idx]->fitAxes();
     });
+    connect(m_fitHAction, &QAction::triggered, this, [this]() {
+        int idx = m_streamTabs->currentIndex();
+        if (idx >= 0 && idx < static_cast<int>(m_chartViews.size()) && m_chartViews[idx])
+            m_chartViews[idx]->fitHorizontal();
+    });
+    connect(m_fitVAction, &QAction::triggered, this, [this]() {
+        int idx = m_streamTabs->currentIndex();
+        if (idx >= 0 && idx < static_cast<int>(m_chartViews.size()) && m_chartViews[idx])
+            m_chartViews[idx]->fitVertical();
+    });
 
     m_playAction->setEnabled(false);
     m_pauseAction->setEnabled(false);
     m_stopAction->setEnabled(false);
     m_loopAction->setEnabled(false);
     m_fitAction->setEnabled(false);
+    m_fitHAction->setEnabled(false);
+    m_fitVAction->setEnabled(false);
 }
 
 void MainWindow::setupStatusBar()
@@ -242,6 +256,8 @@ void MainWindow::setLoadingState(bool loading)
     m_stopAction->setEnabled(!loading && hasData);
     m_loopAction->setEnabled(!loading && hasData);
     m_fitAction->setEnabled(!loading && hasData);
+    m_fitHAction->setEnabled(!loading && hasData);
+    m_fitVAction->setEnabled(!loading && hasData);
 }
 
 void MainWindow::loadXdfFile(const QString &filePath)

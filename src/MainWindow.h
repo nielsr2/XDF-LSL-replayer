@@ -86,6 +86,8 @@ private:
     QAction *m_stopAction = nullptr;
     QAction *m_loopAction = nullptr;
     QAction *m_fitAction = nullptr;
+    QAction *m_fitHAction = nullptr;
+    QAction *m_fitVAction = nullptr;
 
     QLabel *m_statusLabel = nullptr;
     QLabel *m_timeLabel = nullptr;

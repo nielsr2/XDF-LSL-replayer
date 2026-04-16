@@ -175,16 +175,23 @@ void StreamChartView::updateCursorLine()
 
 void StreamChartView::fitAxes()
 {
-    if (!m_axisX || !m_axisY)
-        return;
+    fitHorizontal();
+    fitVertical();
+}
 
+void StreamChartView::fitHorizontal()
+{
+    if (!m_axisX) return;
     double xMargin = (m_dataMaxX - m_dataMinX) * 0.02;
-    double yMargin = (m_dataMaxY - m_dataMinY) * 0.05;
-
     if (xMargin < 1e-9) xMargin = 1.0;
-    if (yMargin < 1e-9) yMargin = 1.0;
-
     m_axisX->setRange(m_dataMinX - xMargin, m_dataMaxX + xMargin);
+}
+
+void StreamChartView::fitVertical()
+{
+    if (!m_axisY) return;
+    double yMargin = (m_dataMaxY - m_dataMinY) * 0.05;
+    if (yMargin < 1e-9) yMargin = 1.0;
     m_axisY->setRange(m_dataMinY - yMargin, m_dataMaxY + yMargin);
 }
 
