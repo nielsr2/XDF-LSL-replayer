@@ -3,6 +3,9 @@
 
 #include <QWidget>
 
+class QDoubleSpinBox;
+class QHBoxLayout;
+
 class TimelineWidget : public QWidget
 {
     Q_OBJECT
@@ -27,9 +30,13 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
+private slots:
+    void onSpinBoxChanged();
+
 private:
     double timeFromX(int x) const;
     int xFromTime(double t) const;
+    void updateSpinBoxes();
 
     double m_duration = 0.0;
     double m_playbackPos = 0.0;
@@ -38,6 +45,12 @@ private:
 
     enum DragTarget { None, LoopStart, LoopEnd };
     DragTarget m_dragTarget = None;
+
+    QDoubleSpinBox *m_startSpin = nullptr;
+    QDoubleSpinBox *m_endSpin = nullptr;
+
+    // Timeline drawing area (below the spin boxes)
+    int m_trackTop = 0;
 
     static constexpr int kMargin = 10;
     static constexpr int kHandleWidth = 8;

@@ -2,15 +2,61 @@
 
 #include <QPainter>
 #include <QMouseEvent>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QDoubleSpinBox>
+#include <QLabel>
 #include <algorithm>
 #include <cmath>
 
 TimelineWidget::TimelineWidget(QWidget *parent)
     : QWidget(parent)
 {
-    setMinimumHeight(50);
-    setMaximumHeight(60);
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(kMargin, 4, kMargin, 0);
+    mainLayout->setSpacing(2);
+
+    // Loop region spin boxes
+    auto *spinRow = new QHBoxLayout;
+    spinRow->setSpacing(8);
+
+    auto *loopLabel = new QLabel("Loop:");
+    loopLabel->setStyleSheet("color: #6a6a80; font-size: 11px;");
+    spinRow->addWidget(loopLabel);
+
+    m_startSpin = new QDoubleSpinBox;
+    m_startSpin->setPrefix("Start: ");
+    m_startSpin->setSuffix("s");
+    m_startSpin->setDecimals(1);
+    m_startSpin->setRange(0, 0);
+    m_startSpin->setStyleSheet(
+        "QDoubleSpinBox { background: #1a1a24; color: #8890a0; border: 1px solid #2a2a3a; "
+        "border-radius: 3px; padding: 2px 4px; font-size: 11px; }"
+    );
+    spinRow->addWidget(m_startSpin);
+
+    m_endSpin = new QDoubleSpinBox;
+    m_endSpin->setPrefix("End: ");
+    m_endSpin->setSuffix("s");
+    m_endSpin->setDecimals(1);
+    m_endSpin->setRange(0, 0);
+    m_endSpin->setStyleSheet(m_startSpin->styleSheet());
+    spinRow->addWidget(m_endSpin);
+
+    spinRow->addStretch();
+    mainLayout->addLayout(spinRow);
+
+    // Reserve space for the painted timeline track
+    mainLayout->addSpacing(40);
+
+    setMinimumHeight(70);
+    setMaximumHeight(80);
     setMouseTracking(true);
+
+    connect(m_startSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &TimelineWidget::onSpinBoxChanged);
+    connect(m_endSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &TimelineWidget::onSpinBoxChanged);
 }
 
 void TimelineWidget::setDuration(double totalSeconds)
@@ -19,6 +65,16 @@ void TimelineWidget::setDuration(double totalSeconds)
     m_loopStart = 0.0;
     m_loopEnd = totalSeconds;
     m_playbackPos = 0.0;
+
+    m_startSpin->blockSignals(true);
+    m_endSpin->blockSignals(true);
+    m_startSpin->setRange(0, totalSeconds);
+    m_startSpin->setValue(0);
+    m_endSpin->setRange(0, totalSeconds);
+    m_endSpin->setValue(totalSeconds);
+    m_startSpin->blockSignals(false);
+    m_endSpin->blockSignals(false);
+
     update();
 }
 
@@ -32,7 +88,29 @@ void TimelineWidget::setLoopRegion(double startSec, double endSec)
 {
     m_loopStart = startSec;
     m_loopEnd = endSec;
+    updateSpinBoxes();
     update();
+}
+
+void TimelineWidget::onSpinBoxChanged()
+{
+    double s = m_startSpin->value();
+    double e = m_endSpin->value();
+    if (e <= s) e = s + 0.1;
+    m_loopStart = std::clamp(s, 0.0, m_duration);
+    m_loopEnd = std::clamp(e, m_loopStart + 0.1, m_duration);
+    update();
+    emit loopRegionChanged(m_loopStart, m_loopEnd);
+}
+
+void TimelineWidget::updateSpinBoxes()
+{
+    m_startSpin->blockSignals(true);
+    m_endSpin->blockSignals(true);
+    m_startSpin->setValue(m_loopStart);
+    m_endSpin->setValue(m_loopEnd);
+    m_startSpin->blockSignals(false);
+    m_endSpin->blockSignals(false);
 }
 
 double TimelineWidget::timeFromX(int x) const
@@ -59,7 +137,8 @@ void TimelineWidget::paintEvent(QPaintEvent *)
 
     int w = width();
     int h = height();
-    int trackY = h / 2 - 6;
+    // Track is in the bottom portion (below spin boxes)
+    int trackY = h - 30;
     int trackH = 12;
     int trackLeft = kMargin;
     int trackRight = w - kMargin;
@@ -155,6 +234,7 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *event)
     }
 
     update();
+    updateSpinBoxes();
     emit loopRegionChanged(m_loopStart, m_loopEnd);
 }
 

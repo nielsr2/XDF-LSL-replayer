@@ -9,10 +9,16 @@ bool XdfLoader::load(const QString &filePath)
     m_error.clear();
 
     Xdf xdf;
+    int result = 0;
     try {
-        xdf.load_xdf(filePath.toStdString());
+        result = xdf.load_xdf(filePath.toStdString());
     } catch (const std::exception &e) {
         m_error = QString("Failed to load XDF file: %1").arg(e.what());
+        return false;
+    }
+
+    if (result != 0) {
+        m_error = QString("libxdf returned error code %1. File may be corrupted.").arg(result);
         return false;
     }
 
@@ -27,9 +33,6 @@ bool XdfLoader::load(const QString &filePath)
     for (size_t i = 0; i < xdf.streams.size(); ++i) {
         const auto &xs = xdf.streams[i];
 
-        if (xs.time_stamps.empty())
-            continue;
-
         XdfStream s;
         s.id = static_cast<int>(i);
 
@@ -39,6 +42,7 @@ bool XdfLoader::load(const QString &filePath)
         s.channelCount = xs.info.channel_count;
         s.nominalSrate = xs.info.nominal_srate;
         s.channelFormat = xs.info.channel_format;
+        s.sampleCount = static_cast<int>(xs.time_stamps.size());
 
         // Channel labels (handle missing "label" key gracefully)
         for (const auto &chMap : xs.info.channels) {
@@ -49,21 +53,22 @@ bool XdfLoader::load(const QString &filePath)
                 s.channelLabels.push_back("");
         }
 
-        // Timestamps
-        s.timeStamps = xs.time_stamps;
+        // Only copy data for streams that have samples
+        if (!xs.time_stamps.empty()) {
+            s.timeStamps = xs.time_stamps;
+            s.data = xs.time_series;
 
-        // Sample data: libxdf stores as time_series[channel][sample] (float)
-        s.data = xs.time_series;
-
-        m_globalMinTime = std::min(m_globalMinTime, s.minTime());
-        m_globalMaxTime = std::max(m_globalMaxTime, s.maxTime());
+            m_globalMinTime = std::min(m_globalMinTime, s.minTime());
+            m_globalMaxTime = std::max(m_globalMaxTime, s.maxTime());
+        }
 
         m_streams.push_back(std::move(s));
     }
 
-    if (m_streams.empty()) {
-        m_error = "No streams with data found in XDF file.";
-        return false;
+    // If no streams had data, still use file-level min/max
+    if (m_globalMinTime > m_globalMaxTime) {
+        m_globalMinTime = 0.0;
+        m_globalMaxTime = 0.0;
     }
 
     return true;

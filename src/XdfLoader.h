@@ -13,12 +13,14 @@ struct XdfStream {
     int channelCount;
     double nominalSrate;
     std::string channelFormat;
+    int sampleCount = 0;
     std::vector<std::string> channelLabels;
 
     // Sample data: time_stamps[i] corresponds to data[channel][i]
     std::vector<double> timeStamps;
     std::vector<std::vector<float>> data; // [channel][sample] (float matches libxdf)
 
+    bool hasData() const { return !timeStamps.empty(); }
     double minTime() const { return timeStamps.empty() ? 0.0 : timeStamps.front(); }
     double maxTime() const { return timeStamps.empty() ? 0.0 : timeStamps.back(); }
 };

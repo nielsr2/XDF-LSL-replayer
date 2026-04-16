@@ -37,6 +37,7 @@ set(SOURCES
     src/LslReplayEngine.cpp
     src/StreamChartView.cpp
     src/TimelineWidget.cpp
+    src/StreamSidebar.cpp
 )
 
 set(HEADERS
@@ -45,6 +46,7 @@ set(HEADERS
     src/LslReplayEngine.h
     src/StreamChartView.h
     src/TimelineWidget.h
+    src/StreamSidebar.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

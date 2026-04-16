@@ -15,6 +15,7 @@ class XdfLoader;
 class LslReplayEngine;
 class StreamChartView;
 class TimelineWidget;
+class StreamSidebar;
 
 // Worker for background file loading
 class XdfLoadWorker : public QObject
@@ -55,14 +56,17 @@ private slots:
     void onFileLoaded(XdfLoader *loader);
     void onFileLoadError(const QString &msg);
     void onLoadProgress(const QString &status);
+    void onStreamToggled(int streamIndex, bool visible);
+    void onStreamSelected(int streamIndex);
+    void onTabChanged(int index);
 
 private:
     void loadXdfFile(const QString &filePath);
     void setupMenus();
     void setupToolbar();
     void setupStatusBar();
-    void setupFooter();
     void buildStreamViews();
+    void ensureChartBuilt(int tabIndex);
     void clearViews();
     void setLoadingState(bool loading);
 
@@ -72,9 +76,9 @@ private:
     QTabWidget *m_streamTabs = nullptr;
     TimelineWidget *m_timeline = nullptr;
     QToolBar *m_toolbar = nullptr;
-    QWidget *m_centralStack = nullptr;
     QLabel *m_welcomeLabel = nullptr;
     QProgressBar *m_progressBar = nullptr;
+    StreamSidebar *m_sidebar = nullptr;
 
     QAction *m_playAction = nullptr;
     QAction *m_pauseAction = nullptr;
@@ -87,6 +91,10 @@ private:
     QThread *m_loadThread = nullptr;
     QString m_currentFilePath;
 
+    // Maps tab index -> stream index in loader
+    std::vector<int> m_tabToStream;
+    // Maps tab index -> whether chart is built (lazy loading)
+    std::vector<bool> m_chartBuilt;
     std::vector<StreamChartView *> m_chartViews;
 };
 

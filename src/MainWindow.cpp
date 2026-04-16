@@ -3,6 +3,7 @@
 #include "LslReplayEngine.h"
 #include "StreamChartView.h"
 #include "TimelineWidget.h"
+#include "StreamSidebar.h"
 
 #include <QMenuBar>
 #include <QStatusBar>
@@ -13,12 +14,11 @@
 #include <QMimeData>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QSplitter>
 #include <QStyle>
 #include <QApplication>
-#include <QStackedWidget>
 #include <QFont>
 #include <QFileInfo>
-#include <QElapsedTimer>
 
 // --- XdfLoadWorker (background file loading) ---
 
@@ -31,7 +31,7 @@ void XdfLoadWorker::process()
         delete loader;
         return;
     }
-    emit progress("Building stream views...");
+    emit progress(QString("Loaded %1 stream(s)").arg(loader->streamCount()));
     emit finished(loader);
 }
 
@@ -41,14 +41,22 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setWindowTitle("XDF LSL Replayer");
-    resize(1200, 750);
+    resize(1280, 780);
     setAcceptDrops(true);
 
-    // Central stacked layout: welcome page vs data view
     auto *central = new QWidget;
     auto *mainLayout = new QVBoxLayout(central);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+
+    // Progress bar (hidden by default)
+    m_progressBar = new QProgressBar;
+    m_progressBar->setRange(0, 0);
+    m_progressBar->setFixedHeight(22);
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setFormat("Loading...");
+    m_progressBar->hide();
+    mainLayout->addWidget(m_progressBar);
 
     // Welcome / drop target label
     m_welcomeLabel = new QLabel;
@@ -60,27 +68,36 @@ MainWindow::MainWindow(QWidget *parent)
         "<p style='font-size:13px; color:#5a5a70;'>or use File \u2192 Open</p>"
         "</div>"
     );
-    m_welcomeLabel->setStyleSheet("background: #16161e; border: 2px dashed #2a2a3a; border-radius: 12px; margin: 40px;");
+    m_welcomeLabel->setStyleSheet(
+        "background: #16161e; border: 2px dashed #2a2a3a; border-radius: 12px; margin: 40px;");
 
-    // Progress bar (hidden by default)
-    m_progressBar = new QProgressBar;
-    m_progressBar->setRange(0, 0); // indeterminate
-    m_progressBar->setFixedHeight(22);
-    m_progressBar->setTextVisible(true);
-    m_progressBar->setFormat("Loading...");
-    m_progressBar->hide();
+    // Sidebar
+    m_sidebar = new StreamSidebar;
+    m_sidebar->hide();
 
-    // Stream tabs
+    // Stream tabs (lazy chart building)
     m_streamTabs = new QTabWidget;
     m_streamTabs->hide();
+    connect(m_streamTabs, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
+
+    // Splitter: sidebar | charts
+    auto *splitter = new QSplitter(Qt::Horizontal);
+    splitter->addWidget(m_sidebar);
+    splitter->addWidget(m_streamTabs);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizes({240, 1000});
+    splitter->setStyleSheet(
+        "QSplitter::handle { background: #2a2a3a; width: 2px; }");
+    splitter->hide();
+    m_sidebar->show(); // shown inside splitter
+
+    mainLayout->addWidget(m_welcomeLabel, 1);
+    mainLayout->addWidget(splitter, 1);
 
     // Timeline
     m_timeline = new TimelineWidget;
     m_timeline->hide();
-
-    mainLayout->addWidget(m_progressBar);
-    mainLayout->addWidget(m_welcomeLabel, 1);
-    mainLayout->addWidget(m_streamTabs, 1);
     mainLayout->addWidget(m_timeline);
 
     // Footer
@@ -88,8 +105,7 @@ MainWindow::MainWindow(QWidget *parent)
     footer->setText("Made with \u2764\uFE0F in Augmented Cognition Lab");
     footer->setAlignment(Qt::AlignCenter);
     footer->setStyleSheet(
-        "background: #12121a; color: #5a5a70; padding: 6px; font-size: 11px;"
-    );
+        "background: #12121a; color: #5a5a70; padding: 6px; font-size: 11px;");
     footer->setFixedHeight(28);
     mainLayout->addWidget(footer);
 
@@ -99,6 +115,11 @@ MainWindow::MainWindow(QWidget *parent)
     setupToolbar();
     setupStatusBar();
 
+    // Sidebar signals
+    connect(m_sidebar, &StreamSidebar::streamToggled,
+            this, &MainWindow::onStreamToggled);
+    connect(m_sidebar, &StreamSidebar::streamSelected,
+            this, &MainWindow::onStreamSelected);
     connect(m_timeline, &TimelineWidget::loopRegionChanged,
             this, &MainWindow::onLoopRegionChanged);
 }
@@ -203,22 +224,21 @@ void MainWindow::openFile()
 void MainWindow::setLoadingState(bool loading)
 {
     m_progressBar->setVisible(loading);
-    m_playAction->setEnabled(!loading && m_loader != nullptr);
-    m_pauseAction->setEnabled(!loading && m_loader != nullptr);
-    m_stopAction->setEnabled(!loading && m_loader != nullptr);
-    m_loopAction->setEnabled(!loading && m_loader != nullptr);
+    bool hasData = m_loader != nullptr;
+    m_playAction->setEnabled(!loading && hasData);
+    m_pauseAction->setEnabled(!loading && hasData);
+    m_stopAction->setEnabled(!loading && hasData);
+    m_loopAction->setEnabled(!loading && hasData);
 }
 
 void MainWindow::loadXdfFile(const QString &filePath)
 {
-    // Stop any existing replay
     if (m_replayEngine) {
         m_replayEngine->stop();
         m_replayEngine->wait();
         m_replayEngine.reset();
     }
 
-    // Cancel any running load
     if (m_loadThread) {
         m_loadThread->quit();
         m_loadThread->wait();
@@ -236,7 +256,6 @@ void MainWindow::loadXdfFile(const QString &filePath)
     setLoadingState(true);
     m_progressBar->setFormat(QString("Loading %1...").arg(fi.fileName()));
 
-    // Background loading
     m_loadThread = new QThread;
     auto *worker = new XdfLoadWorker(filePath);
     worker->moveToThread(m_loadThread);
@@ -266,11 +285,19 @@ void MainWindow::onFileLoaded(XdfLoader *loader)
     QFileInfo fi(m_currentFilePath);
     setWindowTitle(QString("XDF LSL Replayer \u2014 %1").arg(fi.fileName()));
 
-    QString info = QString("%1 stream(s) \u00B7 %2s duration \u00B7 %3")
+    int dataStreams = 0;
+    for (int i = 0; i < m_loader->streamCount(); ++i)
+        if (m_loader->stream(i).hasData()) dataStreams++;
+
+    QString info = QString("%1 stream(s) (%2 with data) \u00B7 %3s \u00B7 %4")
                        .arg(m_loader->streamCount())
+                       .arg(dataStreams)
                        .arg(m_loader->duration(), 0, 'f', 1)
                        .arg(fi.fileName());
     m_statusLabel->setText(info);
+
+    // Sidebar
+    m_sidebar->setStreams(m_loader->streams());
 
     // Timeline
     m_timeline->setDuration(m_loader->duration());
@@ -287,13 +314,19 @@ void MainWindow::onFileLoaded(XdfLoader *loader)
     connect(m_replayEngine.get(), &LslReplayEngine::playbackFinished,
             this, &MainWindow::onStop, Qt::QueuedConnection);
 
-    // Build chart views
-    m_progressBar->setFormat("Building charts...");
+    // Build tabs with lazy chart loading — only create placeholders
     buildStreamViews();
 
     m_welcomeLabel->hide();
+    // Show splitter (parent of sidebar + tabs)
+    if (auto *splitter = qobject_cast<QSplitter *>(m_sidebar->parentWidget()))
+        splitter->show();
     m_streamTabs->show();
     setLoadingState(false);
+
+    // Build chart for the first visible tab
+    if (m_streamTabs->count() > 0)
+        ensureChartBuilt(0);
 }
 
 void MainWindow::onFileLoadError(const QString &msg)
@@ -309,22 +342,106 @@ void MainWindow::buildStreamViews()
     if (!m_loader)
         return;
 
+    m_tabToStream.clear();
+    m_chartBuilt.clear();
+    m_chartViews.clear();
+
     for (int i = 0; i < m_loader->streamCount(); ++i) {
         const auto &stream = m_loader->stream(i);
-        auto *chart = new StreamChartView(stream, m_loader->globalMinTime());
+        if (!stream.hasData())
+            continue;
+
+        // Create a placeholder widget — chart built lazily on tab switch
+        auto *placeholder = new QWidget;
+        auto *layout = new QVBoxLayout(placeholder);
+        auto *loadingLabel = new QLabel("Select this tab to load chart...");
+        loadingLabel->setAlignment(Qt::AlignCenter);
+        loadingLabel->setStyleSheet("color: #5a5a70; font-size: 14px;");
+        layout->addWidget(loadingLabel);
+
         QString tabLabel = QString::fromStdString(stream.name);
         if (stream.channelCount > 1)
             tabLabel += QString(" (%1ch)").arg(stream.channelCount);
-        m_streamTabs->addTab(chart, tabLabel);
-        m_chartViews.push_back(chart);
+        m_streamTabs->addTab(placeholder, tabLabel);
+
+        m_tabToStream.push_back(i);
+        m_chartBuilt.push_back(false);
+        m_chartViews.push_back(nullptr);
+    }
+}
+
+void MainWindow::ensureChartBuilt(int tabIndex)
+{
+    if (tabIndex < 0 || tabIndex >= static_cast<int>(m_chartBuilt.size()))
+        return;
+    if (m_chartBuilt[tabIndex])
+        return;
+
+    int streamIdx = m_tabToStream[tabIndex];
+    const auto &stream = m_loader->stream(streamIdx);
+
+    m_statusLabel->setText(QString("Building chart for %1...").arg(
+        QString::fromStdString(stream.name)));
+    QApplication::processEvents();
+
+    auto *chart = new StreamChartView(stream, m_loader->globalMinTime());
+
+    // Replace placeholder with the real chart
+    QWidget *old = m_streamTabs->widget(tabIndex);
+    m_streamTabs->removeTab(tabIndex);
+    delete old;
+
+    QString tabLabel = QString::fromStdString(stream.name);
+    if (stream.channelCount > 1)
+        tabLabel += QString(" (%1ch)").arg(stream.channelCount);
+    m_streamTabs->insertTab(tabIndex, chart, tabLabel);
+    m_streamTabs->setCurrentIndex(tabIndex);
+
+    m_chartViews[tabIndex] = chart;
+    m_chartBuilt[tabIndex] = true;
+
+    // Restore status
+    QFileInfo fi(m_currentFilePath);
+    m_statusLabel->setText(QString("Viewing: %1").arg(QString::fromStdString(stream.name)));
+}
+
+void MainWindow::onTabChanged(int index)
+{
+    ensureChartBuilt(index);
+}
+
+void MainWindow::onStreamToggled(int streamIndex, bool visible)
+{
+    // Find the tab for this stream
+    for (int t = 0; t < static_cast<int>(m_tabToStream.size()); ++t) {
+        if (m_tabToStream[t] == streamIndex) {
+            m_streamTabs->setTabVisible(t, visible);
+            break;
+        }
+    }
+}
+
+void MainWindow::onStreamSelected(int streamIndex)
+{
+    // Switch to the tab for this stream
+    for (int t = 0; t < static_cast<int>(m_tabToStream.size()); ++t) {
+        if (m_tabToStream[t] == streamIndex) {
+            m_streamTabs->setCurrentIndex(t);
+            break;
+        }
     }
 }
 
 void MainWindow::clearViews()
 {
     m_chartViews.clear();
+    m_chartBuilt.clear();
+    m_tabToStream.clear();
     m_streamTabs->clear();
     m_streamTabs->hide();
+    m_sidebar->clear();
+    if (auto *splitter = qobject_cast<QSplitter *>(m_sidebar->parentWidget()))
+        splitter->hide();
     m_timeline->hide();
     m_welcomeLabel->show();
 }
@@ -333,7 +450,7 @@ void MainWindow::onPlay()
 {
     if (m_replayEngine) {
         m_replayEngine->play();
-        m_statusLabel->setText("Playing...");
+        m_statusLabel->setText("\u25B6 Playing...");
     }
 }
 
@@ -341,7 +458,7 @@ void MainWindow::onPause()
 {
     if (m_replayEngine) {
         m_replayEngine->pause();
-        m_statusLabel->setText("Paused");
+        m_statusLabel->setText("\u23F8 Paused");
     }
 }
 
@@ -350,7 +467,7 @@ void MainWindow::onStop()
     if (m_replayEngine) {
         m_replayEngine->stop();
         m_replayEngine->wait();
-        m_statusLabel->setText("Stopped");
+        m_statusLabel->setText("\u23F9 Stopped");
     }
     onPlaybackPositionChanged(0.0);
 }
@@ -358,8 +475,9 @@ void MainWindow::onStop()
 void MainWindow::onToggleLoop()
 {
     if (m_replayEngine) {
-        m_replayEngine->setLoopEnabled(m_loopAction->isChecked());
-        m_statusLabel->setText(m_loopAction->isChecked() ? "Loop enabled" : "Loop disabled");
+        bool on = m_loopAction->isChecked();
+        m_replayEngine->setLoopEnabled(on);
+        m_statusLabel->setText(on ? "\u21BB Loop enabled" : "Loop disabled");
     }
 }
 
@@ -367,8 +485,10 @@ void MainWindow::onPlaybackPositionChanged(double seconds)
 {
     m_timeline->setPlaybackPosition(seconds);
 
-    for (auto *chart : m_chartViews)
-        chart->setPlaybackCursor(seconds);
+    for (size_t i = 0; i < m_chartViews.size(); ++i) {
+        if (m_chartViews[i])
+            m_chartViews[i]->setPlaybackCursor(seconds);
+    }
 
     int mins = static_cast<int>(seconds) / 60;
     double secs = seconds - mins * 60;
