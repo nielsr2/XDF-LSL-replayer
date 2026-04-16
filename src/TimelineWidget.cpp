@@ -65,37 +65,47 @@ void TimelineWidget::paintEvent(QPaintEvent *)
     int trackRight = w - kMargin;
 
     // Background
-    p.fillRect(rect(), palette().window());
+    p.fillRect(rect(), QColor(22, 22, 30));
 
     // Track background
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(200, 200, 200));
-    p.drawRoundedRect(trackLeft, trackY, trackRight - trackLeft, trackH, 3, 3);
+    p.setBrush(QColor(40, 40, 55));
+    p.drawRoundedRect(trackLeft, trackY, trackRight - trackLeft, trackH, 6, 6);
 
     // Loop region highlight
     if (m_duration > 0) {
         int loopX1 = xFromTime(m_loopStart);
         int loopX2 = xFromTime(m_loopEnd);
-        p.setBrush(QColor(100, 180, 255, 100));
-        p.drawRect(loopX1, trackY, loopX2 - loopX1, trackH);
+
+        QLinearGradient grad(loopX1, 0, loopX2, 0);
+        grad.setColorAt(0.0, QColor(80, 140, 255, 60));
+        grad.setColorAt(1.0, QColor(160, 80, 255, 60));
+        p.setBrush(grad);
+        p.drawRoundedRect(loopX1, trackY, loopX2 - loopX1, trackH, 4, 4);
 
         // Loop start handle
-        p.setBrush(QColor(50, 130, 220));
-        p.drawRect(loopX1 - kHandleWidth / 2, trackY - 4, kHandleWidth, trackH + 8);
+        p.setBrush(QColor(80, 140, 255));
+        p.drawRoundedRect(loopX1 - kHandleWidth / 2, trackY - 5, kHandleWidth, trackH + 10, 3, 3);
 
         // Loop end handle
-        p.drawRect(loopX2 - kHandleWidth / 2, trackY - 4, kHandleWidth, trackH + 8);
+        p.setBrush(QColor(160, 80, 255));
+        p.drawRoundedRect(loopX2 - kHandleWidth / 2, trackY - 5, kHandleWidth, trackH + 10, 3, 3);
     }
 
     // Playback cursor
     if (m_duration > 0) {
         int cx = xFromTime(m_playbackPos);
-        p.setPen(QPen(Qt::red, 2));
-        p.drawLine(cx, trackY - 8, cx, trackY + trackH + 8);
+        p.setPen(QPen(QColor(255, 80, 80), 2));
+        p.drawLine(cx, trackY - 10, cx, trackY + trackH + 10);
+
+        // Cursor head
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(255, 80, 80));
+        p.drawEllipse(QPoint(cx, trackY - 10), 4, 4);
     }
 
     // Time labels
-    p.setPen(palette().text().color());
+    p.setPen(QColor(100, 110, 140));
     QFont font = p.font();
     font.setPointSize(8);
     p.setFont(font);

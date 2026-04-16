@@ -30,6 +30,10 @@ StreamChartView::StreamChartView(const XdfStream &stream, double globalMinTime,
     m_chart = new QChart;
     m_chart->setAnimationOptions(QChart::NoAnimation);
     m_chart->legend()->hide();
+    m_chart->setBackgroundBrush(QBrush(QColor(22, 22, 30)));
+    m_chart->setPlotAreaBackgroundBrush(QBrush(QColor(26, 26, 36)));
+    m_chart->setPlotAreaBackgroundVisible(true);
+    m_chart->setTitleBrush(QBrush(QColor(200, 200, 220)));
 
     m_chartView = new QChartView(m_chart);
     m_chartView->setRenderHint(QPainter::Antialiasing);
@@ -51,10 +55,16 @@ void StreamChartView::buildChart(const XdfStream &stream, double globalMinTime)
 
     m_axisX = new QValueAxis;
     m_axisX->setTitleText("Time (s)");
+    m_axisX->setLabelsColor(QColor(140, 150, 180));
+    m_axisX->setTitleBrush(QBrush(QColor(140, 150, 180)));
+    m_axisX->setGridLineColor(QColor(40, 40, 55));
     m_chart->addAxis(m_axisX, Qt::AlignBottom);
 
     m_axisY = new QValueAxis;
     m_axisY->setTitleText("Amplitude");
+    m_axisY->setLabelsColor(QColor(140, 150, 180));
+    m_axisY->setTitleBrush(QBrush(QColor(140, 150, 180)));
+    m_axisY->setGridLineColor(QColor(40, 40, 55));
     m_chart->addAxis(m_axisY, Qt::AlignLeft);
 
     // Downsampling threshold: if more than this many points, use min-max decimation
@@ -124,14 +134,32 @@ void StreamChartView::buildChart(const XdfStream &stream, double globalMinTime)
 
     // Cursor line
     m_cursorSeries = new QLineSeries;
-    m_cursorSeries->setPen(QPen(Qt::red, 2));
+    m_cursorSeries->setPen(QPen(QColor(255, 80, 80), 2));
     m_chart->addSeries(m_cursorSeries);
     m_cursorSeries->attachAxis(m_axisX);
     m_cursorSeries->attachAxis(m_axisY);
 
+    // Color palette for channels
+    static const QColor channelColors[] = {
+        QColor(80, 160, 255), QColor(255, 120, 80), QColor(100, 220, 140),
+        QColor(220, 180, 60), QColor(180, 100, 255), QColor(255, 100, 180),
+        QColor(80, 220, 220), QColor(200, 200, 100), QColor(160, 120, 220),
+        QColor(120, 200, 80), QColor(255, 160, 120), QColor(100, 180, 220)
+    };
+    for (size_t i = 0; i < m_series.size(); ++i) {
+        QColor c = channelColors[i % 12];
+        m_series[i]->setColor(c);
+        QPen pen = m_series[i]->pen();
+        pen.setWidthF(1.2);
+        m_series[i]->setPen(pen);
+    }
+
     // Show legend only if multiple channels
-    if (stream.channelCount > 1)
+    if (stream.channelCount > 1) {
         m_chart->legend()->show();
+        m_chart->legend()->setLabelColor(QColor(180, 180, 200));
+        m_chart->legend()->setBrush(QBrush(QColor(22, 22, 30, 180)));
+    }
 
     m_chart->setTitle(QString::fromStdString(stream.name));
     fitAxes();
