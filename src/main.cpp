@@ -5,6 +5,7 @@
 #include <QPainterPath>
 #include <QTimer>
 #include <QFont>
+#include <QIcon>
 #include "MainWindow.h"
 
 static QPixmap createSplashPixmap()
@@ -71,6 +72,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName("XDF LSL Replayer");
     app.setApplicationVersion("1.0.0");
+    app.setWindowIcon(QIcon(":/icons/app.ico"));
 
     // Apply dark fusion style
     app.setStyle("Fusion");

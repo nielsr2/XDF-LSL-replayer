@@ -40,11 +40,36 @@ set(HEADERS
     src/StreamSidebar.h
 )
 
-# On Windows static builds, use WIN32 to avoid console window
+# Qt resource file (embeds icon into binary)
+set(RESOURCES resources/resources.qrc)
+
+# Generate Windows .rc with correct absolute path to .ico
 if(WIN32)
-    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
+    set(APP_ICO_PATH "${CMAKE_SOURCE_DIR}/resources/app.ico")
+    string(REPLACE "/" "\\\\" APP_ICO_PATH_RC "${APP_ICO_PATH}")
+    file(WRITE "${CMAKE_BINARY_DIR}/app.rc" "IDI_ICON1 ICON \"${APP_ICO_PATH_RC}\"\n")
+    set(WIN_RC "${CMAKE_BINARY_DIR}/app.rc")
+endif()
+
+# On Windows, use WIN32 subsystem and embed .ico into the exe
+if(WIN32)
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES}
+        ${WIN_RC})
+elseif(APPLE)
+    set(MACOSX_ICON resources/icon_1024.png)
+    set_source_files_properties(${MACOSX_ICON} PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources")
+    add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${SOURCES} ${HEADERS} ${RESOURCES}
+        ${MACOSX_ICON})
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE_ICON_FILE "icon_1024.png"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.augcoglab.xdflslreplayer"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
 else()
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCES})
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -73,17 +98,6 @@ if(WIN32)
                 $<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms
         )
     endif()
-endif()
-
-# macOS: create app bundle with proper RPATH
-if(APPLE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.augcoglab.xdflslreplayer"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        INSTALL_RPATH "@executable_path/../Frameworks"
-    )
 endif()
 
 # Install
