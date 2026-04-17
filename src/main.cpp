@@ -34,7 +34,7 @@ static QPixmap createSplashPixmap()
     p.setFont(subFont);
     p.setPen(QColor(140, 150, 180));
     p.drawText(pix.rect().adjusted(0, 120, 0, 0), Qt::AlignHCenter | Qt::AlignTop,
-               "Record data with Labrecorder ->  \u00B7  Visualize  \u00B7  Replay");
+               "Record data with LabRecorder ->  \u00B7  Visualize  \u00B7  Replay");
 
     // Wave decoration
     p.setPen(QPen(QColor(80, 140, 255, 80), 2));
