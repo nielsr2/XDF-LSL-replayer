@@ -73,11 +73,15 @@ jobs:
         run: |
           $QT_ROOT_DIR/bin/macdeployqt build/XDFLSLReplayer.app || true
 
+      - name: Create zip preserving .app bundle
+        run: |
+          cd build && zip -r -y ../XDFLSLReplayer-macOS.zip XDFLSLReplayer.app
+
       - name: Upload .app artifact
         uses: actions/upload-artifact@v4
         with:
           name: XDFLSLReplayer-macOS
-          path: build/XDFLSLReplayer.app
+          path: XDFLSLReplayer-macOS.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -101,7 +105,7 @@ jobs:
       - name: Zip artifacts
         run: |
           cd XDFLSLReplayer-Windows && zip -r ../XDFLSLReplayer-Windows.zip . && cd ..
-          cd XDFLSLReplayer-macOS && zip -r ../XDFLSLReplayer-macOS.zip . && cd ..
+          cp XDFLSLReplayer-macOS/XDFLSLReplayer-macOS.zip .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
