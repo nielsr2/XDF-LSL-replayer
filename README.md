@@ -5,6 +5,7 @@
 ![XDF LSL Replayer](XDFLSLReplayer_4jZqC8Lliv.png)
 A cross-platform desktop application (Windows 11, macOS) that loads XDF files and replays LSL recordings — both visually and by pushing data back onto the LSL network.
 
+**IF YOU DON'T WANT TO BUILD YOURSELF - [SEE RELEASES ](https://github.com/nielsr2/XDF-LSL-replayer/releases/tag/v1.0.5)**
 ## Features
 
 - **Open XDF files** via drag-and-drop or File → Open
